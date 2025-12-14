@@ -48,7 +48,7 @@ const Sample3 = () => {
         </div>
 
         {/* Slot: Hoistされたコンテンツがここに表示される */}
-        <div className="border-2 border-dashed border-gray-300 p-4 min-h-[100px]">
+        <div className="border-2 border-dashed border-gray-300 p-4 min-h-25">
           <p className="text-gray-400 mb-2">
             ↓ Slot（Hoistされた内容がここに表示）
           </p>
