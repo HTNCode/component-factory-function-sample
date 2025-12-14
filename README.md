@@ -173,9 +173,51 @@ Hoistをネストすると、子のHoistが親のcontentを**上書き**して�
 </Provider>
 ```
 
+### Hoistの中に自動でSlotを差し込めればいける？
+
+Hoist が children をラップして、子用の Provider + Slot を自動挿入する実装を考える：
+
+```tsx
+function Hoist({ children }: { children: ReactNode }) {
+  const context = use(HoistContext);
+
+  // 子Hoist用の独立した state
+  const [childContent, setChildContent] = useState<ReactNode>(null);
+
+  useEffect(() => {
+    context.setContent(
+      <HoistContext.Provider
+        value={{ content: childContent, setContent: setChildContent }}
+      >
+        {children}
+        {childContent} {/* ← 子Hoist用の Slot を自動挿入 */}
+      </HoistContext.Provider>,
+    );
+
+    return () => context.setContent(null);
+  }, [children, childContent, context]);
+
+  return null;
+}
+```
+
+しかし、これも期待通りに動かない：
+
+```tsx
+<Hoist>
+  <div>親メニュー</div>
+  <Hoist>子メニュー</Hoist> {/* ← 子Hoist はここにある */}
+</Hoist>
+
+// 自動挿入される childContent は children の「後ろ」に追加される
+// → 子メニューが親メニューの「外側」に表示されてしまう
+// → 子コンテンツの表示位置を制御できない
+```
+
 ### 解決策: 子メニューはHoistのchildren内に直接配置
 
-子メニューは親Hoistの`children`として直接配置し、カスケードアンマウントは状態管理で実現する：
+- 子メニューは親Hoistの`children`として直接配置し、カスケードアンマウントは状態管理で実現する。
+- これが最もシンプルで要件を満たすことができそう
 
 ```tsx
 const [showParentMenu, setShowParentMenu] = useState(false);
