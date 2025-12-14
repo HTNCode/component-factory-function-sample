@@ -143,25 +143,21 @@ Hoistをネストすると、子のHoistが親のcontentを**上書き**して�
 </Action.Provider>
 ```
 
-### じゃあProviderをネストすればいいのでは？
+### あと、Providerをネストすると子用のSlotがないので子メニューが表示されない
 
 ```tsx
 // ❌ これも期待通りに動かない
 <Provider>
-  {" "}
   {/* Provider A */}
   <Slot /> {/* ← Provider A の content を表示 */}
   <Hoist>
-    {" "}
     {/* → Provider A に登録 */}
     <div>
       親メニュー
       {/* 子用に Provider B が自動生成されたとする */}
       <Provider>
-        {" "}
         {/* Provider B */}
         <Hoist>
-          {" "}
           {/* → Provider B に登録 */}
           <div>子メニュー</div>
         </Hoist>
