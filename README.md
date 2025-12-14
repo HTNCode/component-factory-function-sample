@@ -102,9 +102,9 @@ app/
 
 メニューボタンを開いて子メニューを表示し、子メニューを閉じたときに親メニューも連動して閉じたいケースがある。
 
-### 注意点: Hoistのネストは親を上書きする
+### Hoistのネストは親を上書きする
 
-Hoistをネストすると、子のHoistが親のcontentを**上書き**してしまいます：
+Hoistをネストすると、子のHoistが親のcontentを**上書き**してしまう：
 
 ```tsx
 // ❌ これは期待通りに動かない
@@ -112,7 +112,6 @@ Hoistをネストすると、子のHoistが親のcontentを**上書き**して�
   <div>
     親メニュー
     <CascadeAction.Hoist>
-      {" "}
       {/* これが親のcontentを上書きする */}
       <div>子メニュー</div>
     </CascadeAction.Hoist>
@@ -120,9 +119,63 @@ Hoistをネストすると、子のHoistが親のcontentを**上書き**して�
 </CascadeAction.Hoist>
 ```
 
+### Providerもネストすると別コンテキストになるので子メニューを閉じたときに親を閉じられない
+
+```tsx
+// ❌ これも期待通りに動かない
+<Action.Provider>
+  {/* Provider A */}
+  <Action.Slot />
+  <Action.Hoist>
+    {/* Hoist A */}
+    <div>
+      親メニュー
+      <Action.Provider>
+        {/* Provider B（独立した state） */}
+        <Action.Slot />
+        <Action.Hoist>
+          {/* Hoist B */}
+          <div>子メニュー</div>
+        </Action.Hoist>
+      </Action.Provider>
+    </div>
+  </Action.Hoist>
+</Action.Provider>
+```
+
+### じゃあProviderをネストすればいいのでは？
+
+```tsx
+// ❌ これも期待通りに動かない
+<Provider>
+  {" "}
+  {/* Provider A */}
+  <Slot /> {/* ← Provider A の content を表示 */}
+  <Hoist>
+    {" "}
+    {/* → Provider A に登録 */}
+    <div>
+      親メニュー
+      {/* 子用に Provider B が自動生成されたとする */}
+      <Provider>
+        {" "}
+        {/* Provider B */}
+        <Hoist>
+          {" "}
+          {/* → Provider B に登録 */}
+          <div>子メニュー</div>
+        </Hoist>
+        {/* ❌ Provider B の Slot がない！ */}
+        {/* → 「子メニュー」の表示先がないので、子メニューが表示されない */}
+      </Provider>
+    </div>
+  </Hoist>
+</Provider>
+```
+
 ### 解決策: 子メニューはHoistのchildren内に直接配置
 
-子メニューは親Hoistの`children`として直接配置し、カスケードアンマウントは状態管理で実現します：
+子メニューは親Hoistの`children`として直接配置し、カスケードアンマウントは状態管理で実現する：
 
 ```tsx
 const [showParentMenu, setShowParentMenu] = useState(false);
