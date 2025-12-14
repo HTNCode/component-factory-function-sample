@@ -1,36 +1,186 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Component Factory関数の実装サンプル
 
-## Getting Started
+- じょうげんさんの下記記事を参考に実際に実装してみたサンプル
+  - https://zenn.dev/bmth/articles/component-factory
 
-First, run the development server:
+## 仕組み
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- `HoistableComponentFactory`関数は、`Provider`、`Slot`、`Hoist`の3つのコンポーネントを生成する。
+- `Provider`は状態を管理し、`Slot`と`Hoist`にContextを提供。
+- `Slot`は`Hoist`されたコンテンツを表示する場所を示す。
+- `Hoist`は子要素をContextに登録し、`Slot`に転送する。
+- これにより、`Provider`内の任意の場所に`Slot`を配置し、`Hoist`で指定したコンテンツを表示できる。
+- `Composition Pattern`を使用しているため、サーバーコンポーネントが`children`に渡されても問題ない。
+- Reactの`Context`と`useEffect`を活用して、コンポーネント間で状態を共有し、動的にコンテンツを表示する仕組みを実現する。
+
+## 流れ（例）
+
+1. Sample1ページがマウント
+2. Hoist が children（ボタン）を context.setContent() で登録
+3. Provider の state が更新される
+4. Slot が context.content を読み取り、ボタンを表示
+
+結果: Sample1 で定義したボタンが Header 内の Slot の位置に表示される
+
+## 実装手順
+
+1. `HoistableComponentFactory`関数を定義し、`Provider`、`Slot`、`Hoist`コンポーネントを生成。
+2. `Provider`コンポーネントで状態管理とContextの提供を実装。
+3. `Slot`コンポーネントでContextからコンテンツを取得して表示。
+4. `Hoist`コンポーネントで子要素をContextに登録。
+5. サンプルページで`Provider`、`Slot`、`Hoist`を使用して動作確認。
+
+## サンプルコード構成
+
+```
+lib/
+  hoistable-component.tsx    # Factory関数の本体（createHoistableComponent）
+
+components/
+  header-action/
+    header-actions.tsx       # Factory関数を呼び出し、Provider/Slot/Hoistを生成
+    index.ts                 # HeaderAction名前空間としてエクスポート
+  Header.tsx                 # Slotを配置（Hoistされたコンテンツの表示場所）
+
+app/
+  layout.tsx                 # Providerで全体を囲む
+  sample1/
+    page.tsx                 # Hoistでボタンを登録（緑）
+  sample2/
+    page.tsx                 # Hoistでボタンを登録（青）
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+| ファイル                                        | 役割                                                                      |
+| ----------------------------------------------- | ------------------------------------------------------------------------- |
+| `lib/hoistable-component.tsx`                   | Factory関数。Context を内包した Provider/Slot/Hoist を生成                |
+| `components/header-action/header-actions.tsx`   | Factory関数を呼び出し、HeaderAction用のコンポーネント群を生成             |
+| `components/Header.tsx`                         | `HeaderAction.Slot` を配置。Hoistされたコンテンツがここに表示される       |
+| `app/layout.tsx`                                | `HeaderAction.Provider` で Header と children を囲む                      |
+| `app/sample1/page.tsx` / `app/sample2/page.tsx` | `HeaderAction.Hoist` でボタンを登録。ページ固有のアクションをHeaderに表示 |
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 何が嬉しいか？
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 1. `"use client"` を1箇所にまとめられる
 
-## Learn More
+- Factory関数内で `"use client"` を宣言するだけで、生成される Provider/Slot/Hoist すべてが Client Component になる
+- 使用側（ページコンポーネント等）で毎回 `"use client"` を書く必要がない
+- つまり、使用側はサーバーコンポーネントのまま、Provider/Slot/Hoist を利用できる
 
-To learn more about Next.js, take a look at the following resources:
+### 2. Context がカプセル化される
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Context は Factory関数内のクロージャに閉じ込められ、外部から直接アクセスできない
+- `Provider`、`Slot`、`Hoist` のみが Context にアクセスでき、誤用を防げる
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 3. 型情報が自動的に共有される
 
-## Deploy on Vercel
+- Factory関数内で定義された型が、生成されるコンポーネント間で自動的に共有される
+- 型定義を別途 export する必要がない
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### 4. 関連コンポーネントを名前空間でまとめられる
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```tsx
+// 使用側で直感的に使える
+<HeaderAction.Provider>
+  <HeaderAction.Slot />
+  <HeaderAction.Hoist>...</HeaderAction.Hoist>
+</HeaderAction.Provider>
+```
+
+### 5. 再利用性が高い
+
+- 同じ Factory関数を呼び出すだけで、異なる用途のコンポーネント群を複数生成できる
+- 例: `HeaderAction`、`SidebarAction`、`ModalContent` など
+
+## 補足
+
+- `Hoist` コンポーネントや `Slot` コンポーネントは `Provider` の子孫である必要がある（React ツリー上で）
+- 複数の `Provider` をネストする場合も、各 `Hoist` と `Slot` は対応する `Provider` の子孫である必要がある
+
+## カスケードアンマウント（子のアンマウントに親を連動させる）へ拡張させる
+
+### 課題
+
+複数のHoistをネストした場合（例: メニューボタンを開いて「編集」「削除」などのセレクターを表示し、その中でさらにサブメニューをHoistしたい場合）、子のHoistがアンマウントされたときに親のHoistもアンマウントしたいケースがある。
+
+### 解決策: `createCascadableHoistableComponent`
+
+Contextを拡張して、子のアンマウント時に親のアンマウント関数を呼び出す仕組みを追加。
+
+```tsx
+// lib/hoistable-component.tsx に追加
+export function createCascadableHoistableComponent() {
+  const HoistContext = createContext<{
+    content: ReactNode;
+    setContent: (content: ReactNode) => void;
+    registerParentUnmount?: (unmount: () => void) => void; // 親のアンマウント関数を登録
+  } | null>(null);
+
+  function Hoist({
+    children,
+    cascadeUnmount = false,
+  }: {
+    children: ReactNode;
+    cascadeUnmount?: boolean; // trueなら子のアンマウント時に親も連動
+  }) {
+    const parentUnmountRef = useRef<(() => void) | null>(null);
+
+    useEffect(() => {
+      if (cascadeUnmount) {
+        // 子に親のアンマウント関数を渡せるContextを提供
+        context.setContent(
+          <HoistContext.Provider
+            value={{
+              ...context,
+              registerParentUnmount: (unmount) => {
+                parentUnmountRef.current = unmount;
+              },
+            }}
+          >
+            {children}
+          </HoistContext.Provider>,
+        );
+      }
+
+      // 親に自分のアンマウント関数を登録
+      context.registerParentUnmount?.(() => context.setContent(null));
+
+      return () => {
+        context.setContent(null);
+        parentUnmountRef.current?.(); // 子がアンマウント → 親もアンマウント
+      };
+    }, [children, context, cascadeUnmount]);
+  }
+}
+```
+
+### 使い方
+
+```tsx
+import { CascadeAction } from "@/components/cascade-action";
+
+<CascadeAction.Provider>
+  <CascadeAction.Slot />
+
+  {showParentMenu && (
+    <CascadeAction.Hoist cascadeUnmount={true}>
+      {" "}
+      {/* 親: cascadeUnmount=true */}
+      <div>親メニュー</div>
+      {showChildMenu && (
+        <CascadeAction.Hoist>
+          {" "}
+          {/* 子 */}
+          <div>子メニュー</div>
+          <button onClick={() => setShowChildMenu(false)}>
+            閉じる（親も連動して閉じる）
+          </button>
+        </CascadeAction.Hoist>
+      )}
+    </CascadeAction.Hoist>
+  )}
+</CascadeAction.Provider>;
+```
+
+### デモ
+
+`/sample3` でカスケードアンマウントの動作を確認できる。
