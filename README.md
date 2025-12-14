@@ -96,86 +96,62 @@ app/
 - `Hoist` コンポーネントや `Slot` コンポーネントは `Provider` の子孫である必要がある（React ツリー上で）
 - 複数の `Provider` をネストする場合も、各 `Hoist` と `Slot` は対応する `Provider` の子孫である必要がある
 
-## カスケードアンマウント（子のアンマウントに親を連動させる）へ拡張させる
+## カスケードアンマウント（子を閉じたら親も連動して閉じる）
 
 ### 課題
 
-複数のHoistをネストした場合（例: メニューボタンを開いて「編集」「削除」などのセレクターを表示し、その中でさらにサブメニューをHoistしたい場合）、子のHoistがアンマウントされたときに親のHoistもアンマウントしたいケースがある。
+メニューボタンを開いて子メニューを表示し、子メニューを閉じたときに親メニューも連動して閉じたいケースがある。
 
-### 解決策: `createCascadableHoistableComponent`
+### 注意点: Hoistのネストは親を上書きする
 
-Contextを拡張して、子のアンマウント時に親のアンマウント関数を呼び出す仕組みを追加。
+Hoistをネストすると、子のHoistが親のcontentを**上書き**してしまいます：
 
 ```tsx
-// lib/hoistable-component.tsx に追加
-export function createCascadableHoistableComponent() {
-  const HoistContext = createContext<{
-    content: ReactNode;
-    setContent: (content: ReactNode) => void;
-    registerParentUnmount?: (unmount: () => void) => void; // 親のアンマウント関数を登録
-  } | null>(null);
-
-  function Hoist({
-    children,
-    cascadeUnmount = false,
-  }: {
-    children: ReactNode;
-    cascadeUnmount?: boolean; // trueなら子のアンマウント時に親も連動
-  }) {
-    const parentUnmountRef = useRef<(() => void) | null>(null);
-
-    useEffect(() => {
-      if (cascadeUnmount) {
-        // 子に親のアンマウント関数を渡せるContextを提供
-        context.setContent(
-          <HoistContext.Provider
-            value={{
-              ...context,
-              registerParentUnmount: (unmount) => {
-                parentUnmountRef.current = unmount;
-              },
-            }}
-          >
-            {children}
-          </HoistContext.Provider>,
-        );
-      }
-
-      // 親に自分のアンマウント関数を登録
-      context.registerParentUnmount?.(() => context.setContent(null));
-
-      return () => {
-        context.setContent(null);
-        parentUnmountRef.current?.(); // 子がアンマウント → 親もアンマウント
-      };
-    }, [children, context, cascadeUnmount]);
-  }
-}
+// ❌ これは期待通りに動かない
+<CascadeAction.Hoist>
+  <div>
+    親メニュー
+    <CascadeAction.Hoist>
+      {" "}
+      {/* これが親のcontentを上書きする */}
+      <div>子メニュー</div>
+    </CascadeAction.Hoist>
+  </div>
+</CascadeAction.Hoist>
 ```
 
-### 使い方
+### 解決策: 子メニューはHoistのchildren内に直接配置
+
+子メニューは親Hoistの`children`として直接配置し、カスケードアンマウントは状態管理で実現します：
 
 ```tsx
-import { CascadeAction } from "@/components/cascade-action";
+const [showParentMenu, setShowParentMenu] = useState(false);
+const [showChildMenu, setShowChildMenu] = useState(false);
+
+// 子を閉じるときに親も閉じる
+const handleCloseChild = () => {
+  setShowChildMenu(false);
+  setShowParentMenu(false);
+};
 
 <CascadeAction.Provider>
   <CascadeAction.Slot />
 
   {showParentMenu && (
-    <CascadeAction.Hoist cascadeUnmount={true}>
-      {" "}
-      {/* 親: cascadeUnmount=true */}
-      <div>親メニュー</div>
-      {showChildMenu && (
-        <CascadeAction.Hoist>
-          {" "}
-          {/* 子 */}
-          <div>子メニュー</div>
-          <button onClick={() => setShowChildMenu(false)}>
-            閉じる（親も連動して閉じる）
-          </button>
-        </CascadeAction.Hoist>
-      )}
+    <CascadeAction.Hoist>
+      <div>
+        親メニュー
+        <button onClick={() => setShowChildMenu(true)}>子を開く</button>
+        {/* 子メニューはHoistではなく直接配置 */}
+        {showChildMenu && (
+          <div>
+            子メニュー
+            <button onClick={handleCloseChild}>
+              閉じる（親も連動して閉じる）
+            </button>
+          </div>
+        )}
+      </div>
     </CascadeAction.Hoist>
   )}
 </CascadeAction.Provider>;
